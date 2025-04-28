@@ -1,0 +1,22 @@
+{
+  "name": "softgames-tech-test",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.0",
+    "vite": "^6.3.3"
+  },
+  "packageManager": "pnpm@10.9.0+sha512.0486e394640d3c1fb3c9d43d49cf92879ff74f8516959c235308f5a8f62e2e19528a65cdc2a3058f587cde71eba3d5b56327c8c33a97e4c4051ca48a10ca2d5f",
+  "dependencies": {
+    "@pixi/assets": "^7.4.3",
+    "@pixi/particle-emitter": "^5.0.8",
+    "gsap": "^3.12.7",
+    "pixi.js": "^7.4.3"
+  }
+}
