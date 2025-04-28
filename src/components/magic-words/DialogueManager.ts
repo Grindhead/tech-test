@@ -124,15 +124,30 @@ export class DialogueManager {
     this.dialogueContainer.y = responsivePadding;
   }
 
+  private calculateAvailableWidth(width: number, height: number): number {
+    const padding = this.styles.dialoguePadding;
+    const responsivePadding = Math.max(
+      padding,
+      Math.min(width * 0.08, height * 0.08)
+    );
+    // The actual available width for content inside the dialogue container
+    // considers the container's starting X position (responsivePadding)
+    // and the space needed on the right side (another responsivePadding).
+    return width - responsivePadding * 2;
+  }
+
   private initializeDialogue(): void {
     // Create all dialogue lines with proper vertical spacing
     let currentY = 0;
+    const width = this.app.screen.width;
+    const height = this.app.screen.height;
+    const availableWidth = this.calculateAvailableWidth(width, height);
 
     this.dialogueData.dialogue.forEach((line) => {
-      // Create and layout the dialogue line
+      // Create and layout the dialogue line using the calculated available width
       const lineData = this.lineManager.createDialogueLine(
         line,
-        this.app.screen.width - this.styles.dialoguePadding * 2
+        availableWidth
       );
 
       // Position the line
@@ -246,51 +261,47 @@ export class DialogueManager {
   }
 
   public resize(width: number, height: number): void {
-    // 1. Update the mask dimensions
+    // 1. Update the mask dimensions (uses responsive padding internally)
     this.updateMask(width, height);
 
     // 2. Calculate responsive scale factor
     const baseWidth = 800;
     const scaleFactor = Math.min(1, Math.max(0.8, width / baseWidth));
 
-    // 3. Update styles with scaled font sizes for better readability
+    // 3. Update styles with scaled font sizes (logic remains the same)
     const responsiveTextStyle = { ...this.styles.textStyle };
     const responsiveCharStyle = { ...this.styles.charTextStyle };
     const responsiveMissingStyle = { ...this.styles.missingEmojiStyle };
 
-    // Scale font sizes if they're numbers
     if (typeof responsiveTextStyle.fontSize === "number") {
       responsiveTextStyle.fontSize = Math.round(
         (this.styles.textStyle.fontSize as number) * scaleFactor
       );
     }
-
     if (typeof responsiveCharStyle.fontSize === "number") {
       responsiveCharStyle.fontSize = Math.round(
         (this.styles.charTextStyle.fontSize as number) * scaleFactor
       );
     }
-
     if (typeof responsiveMissingStyle.fontSize === "number") {
       responsiveMissingStyle.fontSize = Math.round(
         (this.styles.missingEmojiStyle.fontSize as number) * scaleFactor
       );
     }
 
-    // 4. Calculate responsive line spacing and padding
+    // 4. Calculate available width *using the consistent method*
+    const availableWidth = this.calculateAvailableWidth(width, height);
     const responsiveLineSpacing = this.styles.lineSpacing * scaleFactor;
-    const availableWidth = width - this.styles.dialoguePadding * 2;
 
     // 5. Reset containers for clean relayout
     this.dialogueContainer.removeChildren();
 
-    // 6. Rebuild and relayout all lines
+    // 6. Rebuild and relayout all lines using the correct available width
     let currentY = 0;
     this.linesData.forEach((_lineData, idx) => {
-      // Recreate line container and objects for better layout control
       const newLineData = this.lineManager.createDialogueLine(
         this.dialogueData.dialogue[idx],
-        availableWidth
+        availableWidth // Use consistent availableWidth
       );
 
       // Copy relevant properties to avoid losing state
@@ -415,32 +426,35 @@ export class DialogueManager {
         this.styles.lineSpacing;
     }
 
-    // 2. Create the new dialogue line
-    const availableWidth =
-      this.app.screen.width - this.styles.dialoguePadding * 2;
+    // 2. Calculate available width *using the consistent method*
+    const width = this.app.screen.width;
+    const height = this.app.screen.height;
+    const availableWidth = this.calculateAvailableWidth(width, height);
+
+    // 3. Create the new dialogue line using the correct available width
     const newLineData = this.lineManager.createDialogueLine(
       line,
-      availableWidth
+      availableWidth // Use consistent availableWidth
     );
 
-    // 3. Position the new line
+    // 4. Position the new line
     newLineData.container.y = currentY;
 
-    // 4. Add to dialogue container and internal data
+    // 5. Add to dialogue container and internal data
     this.dialogueContainer.addChild(newLineData.container);
     this.linesData.push(newLineData);
 
-    // 5. Update dialogue data (optional, but good for consistency if resize happens)
+    // 6. Update dialogue data (optional, but good for consistency if resize happens)
     this.dialogueData.dialogue.push(line);
 
-    // 6. Initially hide all parts of the new line
+    // 7. Initially hide all parts of the new line
     this.lineManager.updateLineVisibility(newLineData, 0, 0);
 
-    // 7. Update content height for scroll manager
+    // 8. Update content height for scroll manager
     const totalHeight = currentY + newLineData.container.height;
     this.scrollManager.updateContentHeight(totalHeight);
 
-    // 8. Reset typing state to allow the new line to start typing
+    // 9. Reset typing state to allow the new line to start typing
     //    - If typing was complete, reset it.
     //    - Set currentLineIndex to the index of the newly added line.
     //    - Reset part and character index.
@@ -453,7 +467,7 @@ export class DialogueManager {
     this.currentPartIndex = 0;
     this.currentCharacterIndex = 0;
 
-    // 9. Force immediate scroll to bottom to show the start of the new line
+    // 10. Force immediate scroll to bottom to show the start of the new line
     this.forceScrollToBottom();
   }
 }

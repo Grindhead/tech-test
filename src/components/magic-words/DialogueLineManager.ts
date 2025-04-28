@@ -142,8 +142,8 @@ export class DialogueLineManager {
     // Check emoji positioning preference - default to inline if not specified
     const shouldPositionEmojisLeft = this.styles.emojiPosition === "left";
 
-    // Define bubble properties
-    const bubbleWidth = Math.min(availableWidth * 0.8, 500); // Max width of chat bubble
+    // Define bubble properties with more conservative width to prevent overflow
+    const bubbleWidth = Math.min(availableWidth * 0.75, 450); // Reduced from 0.8 and 500
     const bubblePadding = 15 * scaleFactor; // Padding inside bubble
     const bubbleRadius = 10 * scaleFactor; // Corner radius
     const avatarSize = this.styles.avatarSize * scaleFactor;
@@ -230,7 +230,10 @@ export class DialogueLineManager {
     });
 
     // Layout all parts inside bubble with word wrapping
-    const maxContentWidth = bubbleWidth - bubblePadding * 2;
+    // Calculate the max content width accounting for possible margins on small screens
+    const maxContentWidth = Math.max(bubbleWidth - bubblePadding * 2, 200);
+    const spaceWidth = 5 * scaleFactor; // Width of a space between words
+    const SAFETY_MARGIN = 2; // Small buffer for width checks
 
     // Process each part for layout
     lineData.parts.forEach((part, index) => {
@@ -238,6 +241,7 @@ export class DialogueLineManager {
       if (!partObject) return;
 
       if (part.type === "text" && partObject instanceof Text) {
+        // Split into words for wrapping
         const words = part.content.split(" ");
 
         for (let i = 0; i < words.length; i++) {
@@ -249,25 +253,86 @@ export class DialogueLineManager {
           const wordWidth = tempText.width;
           tempText.destroy();
 
-          // Check if this word fits on current line
-          if (
-            currentX + wordWidth > maxContentWidth &&
-            currentX > bubblePadding
-          ) {
-            // Move to next line
-            currentX = bubblePadding;
-            currentY += currentLineHeight + 2 * scaleFactor;
+          // Handle extremely long words by breaking them
+          if (wordWidth + SAFETY_MARGIN > maxContentWidth && word.length > 10) {
+            // Add margin
+            // If a single word is too long for the line, break it
+            let remainingWord = word;
+            let charsFit = 0;
+
+            while (remainingWord.length > 0) {
+              // Find how many characters fit
+              for (charsFit = 1; charsFit <= remainingWord.length; charsFit++) {
+                const segment = remainingWord.substring(0, charsFit);
+                const segmentText = new Text(segment, partObject.style);
+                segmentText.scale.set(scaleFactor);
+
+                // Check if the segment fits within the max content width, including margin
+                if (segmentText.width + SAFETY_MARGIN > maxContentWidth) {
+                  // Add margin
+                  // One character less will fit (or at least 1 char if even 1 is too long)
+                  charsFit = Math.max(1, charsFit - 1);
+                  segmentText.destroy();
+                  break;
+                }
+
+                segmentText.destroy();
+              }
+
+              // Get the segment that fits
+              const segment = remainingWord.substring(0, charsFit);
+
+              // Create the segment text to measure its width
+              const segmentText = new Text(segment, partObject.style);
+              segmentText.scale.set(scaleFactor);
+              const segmentWidth = segmentText.width;
+
+              // Move to the next line if needed (before placing)
+              if (
+                currentX > bubblePadding &&
+                currentX + segmentWidth + SAFETY_MARGIN > maxContentWidth // Add margin
+              ) {
+                currentX = bubblePadding;
+                currentY += currentLineHeight + 2 * scaleFactor;
+              }
+
+              // Position the segment text
+              segmentText.position.set(currentX, currentY);
+              contentContainer.addChild(segmentText);
+
+              // Update position and remaining word
+              currentX += segmentWidth; // No space after broken segment
+              remainingWord = remainingWord.substring(charsFit);
+
+              // If there's more of the word, move to next line
+              if (remainingWord.length > 0) {
+                currentX = bubblePadding;
+                currentY += currentLineHeight + 2 * scaleFactor;
+              }
+
+              lineWidth = Math.max(lineWidth, currentX);
+            }
+          } else {
+            // Normal word handling - check if this word fits on current line
+            if (
+              currentX > bubblePadding && // Don't wrap if it's the first word on the line
+              currentX + wordWidth + SAFETY_MARGIN > maxContentWidth // Add margin
+            ) {
+              // Move to next line
+              currentX = bubblePadding;
+              currentY += currentLineHeight + 2 * scaleFactor;
+            }
+
+            // Create text for this word
+            const wordText = new Text(word, partObject.style);
+            wordText.scale.set(scaleFactor);
+            wordText.position.set(currentX, currentY);
+            contentContainer.addChild(wordText);
+
+            // Update position for the next element (word or space)
+            currentX += wordWidth + spaceWidth; // Add space after word
+            lineWidth = Math.max(lineWidth, currentX - spaceWidth); // Track max width used by content itself
           }
-
-          // Create text for this word
-          const wordText = new Text(word, partObject.style);
-          wordText.scale.set(scaleFactor);
-          wordText.position.set(currentX, currentY);
-          contentContainer.addChild(wordText);
-
-          // Update position
-          currentX += wordWidth + 5 * scaleFactor; // Space after word
-          lineWidth = Math.max(lineWidth, currentX);
         }
       } else if (
         !shouldPositionEmojisLeft &&
@@ -275,10 +340,12 @@ export class DialogueLineManager {
         partObject instanceof Sprite
       ) {
         // Position emoji inline with text if not using left positioning
+        const emojiWidth = partObject.width; // Use measured width after scaling
+
         // Check if emoji fits on current line
         if (
-          currentX + partObject.width > maxContentWidth &&
-          currentX > bubblePadding
+          currentX > bubblePadding && // Don't wrap if it's the first element
+          currentX + emojiWidth + SAFETY_MARGIN > maxContentWidth // Add margin
         ) {
           // Move to next line
           currentX = bubblePadding;
@@ -286,21 +353,26 @@ export class DialogueLineManager {
         }
 
         // Position emoji - adjust Y to align with text baseline
-        // The 0.5 anchor ensures vertical center alignment with the text line
         partObject.position.set(currentX, currentY + currentLineHeight / 2);
 
         // Add to content container
         contentContainer.addChild(partObject);
 
         // Update position with proper spacing
-        currentX += partObject.width + 5 * scaleFactor;
-        lineWidth = Math.max(lineWidth, currentX);
+        currentX += emojiWidth + spaceWidth;
+        lineWidth = Math.max(lineWidth, currentX - spaceWidth); // Track max width used by content itself
       }
     });
 
-    // Calculate final bubble dimensions
-    const totalContentWidth = Math.min(lineWidth, maxContentWidth);
+    // Calculate final bubble dimensions based on actual layout
+    // Use the tracked lineWidth (max X reached by content) and clamp to maxContentWidth
+    const finalContentWidth = Math.min(lineWidth, maxContentWidth);
+    // Ensure finalContentWidth is at least bubblePadding if lineWidth was 0
+    const actualBubbleContentWidth = Math.max(finalContentWidth, bubblePadding);
     const totalContentHeight = currentY + currentLineHeight + bubblePadding;
+
+    // Calculate the width needed for the bubble graphic
+    const bubbleDrawWidth = actualBubbleContentWidth + bubblePadding * 2;
 
     // Draw bubble with rounded corners
     bubble.clear();
@@ -319,43 +391,39 @@ export class DialogueLineManager {
       bubble.drawRoundedRect(
         0,
         0,
-        totalContentWidth + bubblePadding * 2,
+        bubbleDrawWidth, // Use calculated draw width
         totalContentHeight,
         bubbleRadius
       );
       bubble.moveTo(
-        totalContentWidth + bubblePadding * 2,
+        bubbleDrawWidth, // Use calculated draw width
         totalContentHeight - 15 * scaleFactor
       );
       bubble.lineTo(
-        totalContentWidth + bubblePadding * 2 + 10 * scaleFactor,
+        bubbleDrawWidth + 10 * scaleFactor, // Use calculated draw width
         totalContentHeight
       );
-      bubble.lineTo(totalContentWidth + bubblePadding * 2, totalContentHeight);
+      bubble.lineTo(bubbleDrawWidth, totalContentHeight); // Use calculated draw width
 
       // Position bubble on right side
-      // Add space for avatar on the left without adjusting the bubble position
-      bubbleContainer.x =
-        availableWidth -
-        (totalContentWidth + bubblePadding * 2 + 15 * scaleFactor);
+      const rightPos = availableWidth - (bubbleDrawWidth + 15 * scaleFactor); // Use calculated draw width for positioning
+      // Ensure bubble doesn't go off screen on the left
+      bubbleContainer.x = Math.max(0, rightPos);
 
-      // Add avatar if available
+      // Add avatar if available (positioning unchanged)
       if (avatar) {
-        // Position avatar on the left side instead of to the left of the right-aligned bubble
         avatar.position.set(
           5 * scaleFactor,
           totalContentHeight / 2 - avatarSize / 2
         );
         lineData.container.addChild(avatar);
-
-        // No need to adjust bubble position for right-aligned messages
       }
     } else {
       // Left-aligned bubble with tail on left
       bubble.drawRoundedRect(
         0,
         0,
-        totalContentWidth + bubblePadding * 2,
+        bubbleDrawWidth, // Use calculated draw width
         totalContentHeight,
         bubbleRadius
       );
@@ -363,10 +431,13 @@ export class DialogueLineManager {
       bubble.lineTo(-10 * scaleFactor, totalContentHeight);
       bubble.lineTo(0, totalContentHeight);
 
-      // Position bubble on left side with space for avatar and emojis
-      bubbleContainer.x = 15 * scaleFactor + avatarOffset + emojiOffset;
+      // Position bubble on left side (positioning logic unchanged)
+      bubbleContainer.x = Math.max(
+        0,
+        15 * scaleFactor + avatarOffset + emojiOffset
+      );
 
-      // Add avatar if available
+      // Add avatar if available (positioning unchanged)
       if (avatar) {
         avatar.position.set(
           5 * scaleFactor,
@@ -375,7 +446,7 @@ export class DialogueLineManager {
         lineData.container.addChild(avatar);
       }
 
-      // Position emojis to the left of the bubble (only if using left positioning)
+      // Position emojis to the left of the bubble (logic unchanged)
       if (shouldPositionEmojisLeft && leftEmojis.length > 0) {
         const emojiContainer = new Container();
         const emojiStartX = avatarOffset + 5 * scaleFactor;
@@ -387,8 +458,6 @@ export class DialogueLineManager {
           emojiClone.height = emoji.height;
           emojiClone.position.set(0, emojiY);
           emojiContainer.addChild(emojiClone);
-
-          // Stack emojis vertically with small spacing
           emojiY += emoji.height + 5 * scaleFactor;
         });
 
@@ -399,11 +468,11 @@ export class DialogueLineManager {
 
     bubble.endFill();
 
-    // Position content inside bubble
+    // Position content inside bubble (unchanged)
     contentContainer.x = bubblePadding;
     contentContainer.y = bubblePadding;
 
-    // Update container height
+    // Update container height (unchanged)
     const finalHeight = totalContentHeight + 15 * scaleFactor; // Add space below bubble
     lineData.container.height = finalHeight;
 
