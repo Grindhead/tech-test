@@ -247,10 +247,5 @@ export class ParticleManager {
     // Clear the list of active particles
     this.activeParticles = [];
     this.timeSinceLastSpawn = 0; // Reset spawn timer
-
-    // Note: We don't clear the pool itself here (this.particlePool.clear()),
-    // as the pool might be intended to persist if the manager is re-initialized.
-    // If complete cleanup including textures is needed, the pool's clear method
-    // and potentially texture cache clearing would be necessary elsewhere.
   }
 }
