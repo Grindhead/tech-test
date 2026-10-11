@@ -163,7 +163,6 @@ export class CardManager {
     const topCard = sourceStack[sourceStack.length - 1];
     if (this.animationManager.isAnimating(this.getCardId(topCard))) {
       // Card is already being animated
-      this.isStack1Source = !this.isStack1Source;
       return false;
     }
 
@@ -214,8 +213,8 @@ export class CardManager {
       }
     );
 
-    // Toggle source stack for next move
-    this.isStack1Source = !this.isStack1Source;
+    // Reverse direction only after transferring the complete source stack.
+    if (sourceStack.length === 0) this.isStack1Source = !this.isStack1Source;
     return true;
   }
 
