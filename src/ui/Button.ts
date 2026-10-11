@@ -68,6 +68,7 @@ export class Button extends Container {
   private boundPointerDown: () => void;
   /** Bound reference to the onPointerUp method. */
   private boundPointerUp: () => void;
+  private boundActivation: () => void;
 
   /**
    * Creates an instance of Button.
@@ -127,11 +128,22 @@ export class Button extends Container {
     this.boundPointerUp = this.onPointerUp.bind(this);
 
     // Enable interaction
+    this.accessible = true;
+    this.accessibleTitle = this.options.text;
+    this.accessibleType = "button";
+    this.tabIndex = 0;
     this.eventMode = "static";
     this.cursor = "pointer";
 
     // Add event listeners
-    this.on("pointertap", this.options.onClick);
+    // Finish accessibility click/tap dispatch before a scene change destroys this target.
+    this.boundActivation = () => queueMicrotask(() => {
+      if (!this.destroyed) {
+        this._accessibleDiv?.blur();
+        this.options.onClick();
+      }
+    });
+    this.on("pointertap", this.boundActivation);
     this.on("pointerover", this.boundPointerOver);
     this.on("pointerout", this.boundPointerOut);
     this.on("pointerdown", this.boundPointerDown);
@@ -235,6 +247,7 @@ export class Button extends Container {
    */
   public setText(newText: string): void {
     this.buttonText.text = newText;
+    this.accessibleTitle = newText;
     // Optional: If text length changes significantly, might need to re-center or adjust layout.
     // this.buttonText.x = this.options.width / 2;
     // this.buttonText.y = this.options.height / 2;
@@ -270,7 +283,7 @@ export class Button extends Container {
    */
   public destroy(options?: boolean | IDestroyOptions): void {
     // Remove all event listeners using the stored bound references
-    this.off("pointertap", this.options.onClick);
+    this.off("pointertap", this.boundActivation);
     this.off("pointerover", this.boundPointerOver);
     this.off("pointerout", this.boundPointerOut);
     this.off("pointerdown", this.boundPointerDown);

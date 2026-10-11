@@ -294,7 +294,9 @@ export class DialogueManager {
     const responsiveLineSpacing = this.styles.lineSpacing * scaleFactor;
 
     // 5. Reset containers for clean relayout
-    this.dialogueContainer.removeChildren();
+    for (const child of this.dialogueContainer.removeChildren()) {
+      child.destroy({children: true, texture: false, baseTexture: false});
+    }
 
     // 6. Rebuild and relayout all lines using the correct available width
     let currentY = 0;

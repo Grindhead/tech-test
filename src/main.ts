@@ -1,8 +1,6 @@
 import "./style.css";
 import {
   Application,
-  extensions,
-  AccessibilityManager,
   // Container, // Removed
   // FederatedPointerEvent, // Removed
 } from "pixi.js";
@@ -18,9 +16,6 @@ import { appConfig } from "./config/index";
  * @returns {Promise<void>} A promise that resolves when the application initialization is complete.
  */
 async function initApp() {
-  // Disable the accessibility manager
-  extensions.remove(AccessibilityManager);
-
   const app = new Application<HTMLCanvasElement>({
     background: "#1099bb",
     resizeTo: window,
